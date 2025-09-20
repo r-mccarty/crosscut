@@ -19,9 +19,9 @@ This approach enables centralized orchestration while maintaining decentralized 
 
 CrossCut is architected as a cloud-native, event-driven platform designed for Google Cloud Platform (GCP).
 
-*   **Pattern:** Command Query Responsibility Segregation (CQRS) to optimize for both transactional integrity and query performance.
+*   **Pattern:** Simplified, unified data layer for the MVP, with the option to evolve to full Command Query Responsibility Segregation (CQRS) as the platform scales.
     *   **Write Model:** A PostgreSQL database using an Anchor Modeling schema provides an immutable, auditable log of all platform actions.
-    *   **Read Model:** A Dgraph graph database serves as a high-performance "World Model," giving the BPO the context it needs to make fast, intelligent decisions.
+    *   **Read Model:** PostgreSQL materialized views serve as a high-performance "World Model," giving the BPO the context it needs to make fast, intelligent decisions.
 *   **Orchestration:** Long-running, stateful processes are managed by **GCP Workflows**, which receive their instructions from the stateless BPO service.
 *   **Communication:** Asynchronous, event-based communication relies on **GCP Pub/Sub**, while internal, command-based communication uses synchronous RESTful APIs.
 
