@@ -9,7 +9,7 @@ CrossCut represents a fundamental shift in enterprise automation. It moves beyon
 
 At its core, CrossCut is a high-performance Go platform, architected as a "Conductor and Experts" model. A central **Business Process Orchestrator (BPO)**, powered by a stateful engine like GCP Workflows, intelligently directs a sequence of actions. However, it defers all domain-specific validation and data enrichment to the authoritative systems that own that truth. This "Federated Governance" model ensures both centralized control and decentralized authority.
 
-By leveraging a CQRS pattern with distinct, auditable write models (Postgres) and high-performance read models (Dgraph), CrossCut provides unprecedented velocity, quality, and insight. It is a strategic platform designed to eliminate the friction between our systems and supercharge our engineering teams for the era of AI-driven development.
+By leveraging a CQRS pattern with distinct, auditable write models (Postgres) and high-performance read models (PostgreSQL Materialized Views), CrossCut provides unprecedented velocity, quality, and insight. It is a strategic platform designed to eliminate the friction between our systems and supercharge our engineering teams for the era of AI-driven development.
 
 ## 2. The Challenge: The High Cost of Disconnected Work
 
@@ -58,7 +58,7 @@ These principles are realized through four core architectural concepts:
 
 *   **The CQRS Data Platform:** This is the **"Institutional Memory"**. CrossCut maintains its own state using two specialized databases:
     *   **The Write Model (Postgres/Anchor Model):** An auditable, immutable log of every decision and action the platform takes. It is optimized for transactional integrity and historical accuracy.
-    *   **The Read Model (Dgraph/Graph Model):** A high-performance, denormalized cache of data from all relevant systems. It is the "World Model" the BPO consults to make fast, context-aware decisions.
+    *   **The Read Model (PostgreSQL Materialized Views):** A series of denormalized, pre-computed views of the data, stored on disk for excellent read performance. These views serve as the "World Model" the BPO consults to make fast, context-aware decisions.
 
 ## 5. Architectural Strengths & Key Benefits
 
@@ -76,7 +76,7 @@ These principles are realized through four core architectural concepts:
 
 1.  **TRIGGER:** The PLM system releases a new board revision, publishing a `SchematicReleased` event to Pub/Sub.
 2.  **ORCHESTRATE:** A GCP Workflow is triggered. Its first step is to command the BPO to design a response plan.
-3.  **DECIDE:** The BPO consumes the event, queries its Dgraph "World Model" for context, and generates a template plan to create a new test procedure.
+3.  **DECIDE:** The BPO consumes the event, queries its PostgreSQL Materialized Views ("World Model") for context, and generates a template plan to create a new test procedure.
 4.  **VALIDATE & ENRICH:** The workflow sends this template plan to the PLM's `/enrich` endpoint. The PLM validates it against its engineering rules and injects the authoritative voltage spec.
 5.  **EXECUTE:** The workflow receives the final, validated plan and dispatches commands in parallel: one to `DocGen` to render the document, and another to the WMS to create a new `WorkItem` for the test.
 6.  **AUDIT:** Upon completion, the workflow commands the BPO to write a final, comprehensive record of the entire process to the Postgres audit log.

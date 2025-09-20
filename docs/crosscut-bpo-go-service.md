@@ -70,21 +70,21 @@ sequenceDiagram
     PubSub ->>+ Workflow: 1. Event triggers workflow
     
     Workflow ->>+ BPO: 2. POST /v1/decisions/generate-commands
-    
-    BPO->>+Postgres: 3. BEGIN TRANSACTION
-    BPO->>Postgres: 4. Write to Anchor Model
-    BPO->>Postgres: 5. REFRESH MATERIALIZED VIEW
-    BPO-->>-Postgres: 6. COMMIT
+
+    BPO ->>+ Postgres: 3. BEGIN TRANSACTION
+    BPO ->> Postgres: 4. Write to Anchor Model
+    BPO ->> Postgres: 5. REFRESH MATERIALIZED VIEW
+    BPO -->>- Postgres: 6. COMMIT
 
     Note over BPO: Gathers context by reading from Materialized Views
-    BPO ->> PLM: 6a. Asks for enrichment/validation
-    PLM -->> BPO: Returns data
-    
-    BPO -->>- Workflow: 7. Returns CommandList
-    
-    Workflow ->>+ DocGen: 8. Executes command
-    DocGen -->>- Workflow: 9. Returns status
-    
-    Workflow ->>+ BPO: 10. POST /v1/audits
-    BPO-->>-Workflow: 11. 202 Accepted
+    BPO ->>+ PLM: 7. Asks for enrichment/validation
+    PLM -->>- BPO: Returns data
+
+    BPO -->>- Workflow: 8. Returns CommandList
+
+    Workflow ->>+ DocGen: 9. Executes command
+    DocGen -->>- Workflow: 10. Returns status
+
+    Workflow ->>+ BPO: 11. POST /v1/audits
+    BPO-->>-Workflow: 12. 202 Accepted
 ```
