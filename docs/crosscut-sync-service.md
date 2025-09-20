@@ -157,3 +157,10 @@ func handleEvent(event ChangeEvent) error {
 *   **Idempotency:** The use of `upsert` mutations based on a stable external ID (`xid`) is the most critical factor for resilience. If the service processes the same event twice, the outcome will be the same.
 *   **Retries:** The Pub/Sub trigger for Cloud Run provides automatic retries with exponential backoff. If the `sync-transformer` fails to process a message (e.g., Dgraph is temporarily unavailable), Pub/Sub will attempt to deliver it again.
 *   **Dead-letter Queue:** For messages that fail repeatedly, a dead-letter queue (DLQ) should be configured on the Pub/Sub subscription. This captures poison pill messages for later analysis without halting the entire pipeline.
+
+## 5. A Note on Transactions
+
+The `sync-transformer` service, as designed, does not need to wrap its Dgraph writes in an explicit, multi-operation transaction. This is because each incoming message from the CDC pipeline represents a single, atomic change from the source database.
+
+The use of an **idempotent `upsert` operation** in Dgraph is the key to ensuring data consistency. This atomic operation, combined with the "at-least-once" delivery guarantee of Pub/Sub, ensures that even if an event is processed multiple times, the final state of the data in Dgraph will be correct. Dgraph transactions are reserved for cases where multiple, distinct operations (e.g., several queries and mutations) must all succeed or fail as a single, atomic unit.
+

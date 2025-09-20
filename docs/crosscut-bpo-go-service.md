@@ -105,7 +105,19 @@ The service exposes a minimal, task-oriented API designed to be called by GCP Wo
         ```
     *   **Success Response (202 Accepted):** No body needed.
 
-### 7. Sequence of Interaction
+### 7. Transactional Integrity in the Write Model
+
+Unlike the `sync-transformer` which handles single, idempotent operations, the `crosscut-bpo` service **must** use ACID-compliant transactions when writing to the Postgres Write Model. 
+
+The reason is that a single business process decision or audit event may require writing multiple, dependent records to the database. For example, completing a workflow might involve:
+
+1.  Creating a final `WorkflowAudit` record.
+2.  Updating the status of a parent `ProcessInstance` record.
+3.  Writing several `ArtifactGenerated` records.
+
+These operations must be performed within a single transaction. If any step fails, the entire transaction must be rolled back. This ensures that the platform's auditable log remains in a consistent and trustworthy state at all times, preventing partial or corrupt records of a business process.
+
+### 8. Sequence of Interaction
 
 This diagram shows how the stateless BPO service fits into the stateful GCP Workflow.
 

@@ -29,13 +29,24 @@ The platform is designed as a "Conductor and Experts" model. A central orchestra
 
 The platform is composed of four primary subsystems.
 
-#### 3.1 Write Model: The Transactional Core
+#### 3.1 Write Model: The Auditable Log & Transactional Core
 
 *   **Technology:** Cloud SQL for PostgreSQL.
-*   **Data Model:** **Anchor Modeling (6NF).** The schema will be highly normalized to prioritize evolvability and historization. All attributes and ties will be timestamped.
-*   **Responsibilities:**
-    1.  To serve as the immutable, auditable log of all decisions and actions orchestrated by the CrossCut platform.
-    2.  To act as the durable state store for the BPO's workflow engine.
+*   **Data Model:** **Anchor Modeling (6NF).**
+*   **Purpose:** The primary role of the Write Model is to serve as the **immutable, auditable log** of all decisions and actions orchestrated by the CrossCut platform. It is the system's definitive "book of record," designed to answer the question "Why did this happen?" for any action, at any point in time, with 100% fidelity.
+
+*   **Why Anchor Modeling?**
+    This highly normalized schema is chosen specifically to meet the demands of a true audit trail. Instead of performing destructive `UPDATE` operations (which overwrite and thus erase historical state), the system performs `INSERT`s of new, timestamped records. For example, to change a part's status, a new row is inserted into the `Part_Status_Attribute` table with the new status and a current timestamp. The old row is not touched. This provides a complete, non-destructive history of every state change, which is the essence of auditability.
+
+*   **Transactional Integrity Example**
+    The integrity of this log is guaranteed by ACID-compliant transactions. The BPO must use transactions for any business process that requires writing multiple facts. Consider a `SchematicApproved` event that triggers a "Create Test Plan" workflow. The BPO's transactional write to Postgres would include:
+
+    1.  `INSERT` into `WorkflowInstance_Anchor` (to create the new workflow's identity).
+    2.  `INSERT` into `WorkflowInstance_Status_Attribute` (to set the initial status to 'InProgress').
+    3.  `INSERT` into `WorkflowInstance_TriggeringEvent_Attribute` (to link the workflow to the `SchematicApproved` event).
+
+    These three operations are wrapped in a single transaction. If any one of them fails, the entire transaction is rolled back. This is critical. It ensures the audit log is never left in a partial or corrupt state, which would violate its purpose as the definitive source of truth.
+
 *   **Access:** Write access is **exclusively granted** to the `crosscut-bpo` service account. No other service may connect.
 
 #### 3.2 Read Model: The "World Model"
