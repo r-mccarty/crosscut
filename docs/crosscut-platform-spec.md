@@ -25,54 +25,33 @@ The platform is designed as a "Conductor and Experts" model. A central orchestra
 *   **Auditability:** The platform's write model must be structured to provide a complete, immutable, and temporally accurate history of all orchestrated actions.
 *   **Security:** Services must be secured using GCP IAM. The core write database will have strictly limited access, granted only to the BPO service.
 
-### 3.0 Platform Components & Specifications
+## 3.0 Platform Components & Specifications (MVP Architecture)
 
-The platform is composed of four primary subsystems.
+The platform is composed of a simplified set of components, centered around a unified PostgreSQL database.
 
-#### 3.1 Write Model: The Auditable Log & Transactional Core
+#### 3.1 The Unified Data Layer (PostgreSQL)
 
-*   **Technology:** Cloud SQL for PostgreSQL.
-*   **Data Model:** **Anchor Modeling (6NF).**
-*   **Purpose:** The primary role of the Write Model is to serve as the **immutable, auditable log** of all decisions and actions orchestrated by the CrossCut platform. It is the system's definitive "book of record," designed to answer the question "Why did this happen?" for any action, at any point in time, with 100% fidelity.
+For the MVP, a single Cloud SQL for PostgreSQL instance will serve as both the transactional core and the read-model, simplifying the architecture and ensuring strong consistency.
 
-*   **Why Anchor Modeling?**
-    This highly normalized schema is chosen specifically to meet the demands of a true audit trail. Instead of performing destructive `UPDATE` operations (which overwrite and thus erase historical state), the system performs `INSERT`s of new, timestamped records. For example, to change a part's status, a new row is inserted into the `Part_Status_Attribute` table with the new status and a current timestamp. The old row is not touched. This provides a complete, non-destructive history of every state change, which is the essence of auditability.
+*   **Write Model (The Auditable Log):
+    *   **Technology:** PostgreSQL
+    *   **Data Model:** **Anchor Modeling (6NF).** This remains the core of the auditable log, providing a complete, immutable history of all orchestrated actions by prioritizing `INSERT`s over `UPDATE`s.
+    *   **Access:** Write access is **exclusively granted** to the `crosscut-bpo` service account.
 
-*   **Transactional Integrity Example**
-    The integrity of this log is guaranteed by ACID-compliant transactions. The BPO must use transactions for any business process that requires writing multiple facts. Consider a `SchematicApproved` event that triggers a "Create Test Plan" workflow. The BPO's transactional write to Postgres would include:
+*   **Read Model (The "World Model")**
+    *   **Technology:** PostgreSQL **Materialized Views**.
+    *   **Data Model:** A series of denormalized views that join data from the Anchor Model tables into wide, easy-to-query relational structures.
+    *   **Responsibilities:** To provide the `crosscut-bpo` with a high-performance, context-rich, and strongly consistent view of the state of the enterprise.
 
-    1.  `INSERT` into `WorkflowInstance_Anchor` (to create the new workflow's identity).
-    2.  `INSERT` into `WorkflowInstance_Status_Attribute` (to set the initial status to 'InProgress').
-    3.  `INSERT` into `WorkflowInstance_TriggeringEvent_Attribute` (to link the workflow to the `SchematicApproved` event).
+#### 3.2 The Synchronization Mechanism
 
-    These three operations are wrapped in a single transaction. If any one of them fails, the entire transaction is rolled back. This is critical. It ensures the audit log is never left in a partial or corrupt state, which would violate its purpose as the definitive source of truth.
+Synchronization between the write and read models is achieved synchronously and transactionally, managed directly by the BPO.
 
-*   **Access:** Write access is **exclusively granted** to the `crosscut-bpo` service account. No other service may connect.
+*   **Responsibility:** The `crosscut-bpo` service.
+*   **Mechanism:** After writing to the Anchor Model, and within the same ACID transaction, the BPO issues a `REFRESH MATERIALIZED VIEW CONCURRENTLY` command to update the relevant views. The `CONCURRENTLY` option is critical to prevent locking the views during the refresh.
+*   **Benefit:** This approach guarantees **strong consistency**. When a transaction is committed, the Read Model is guaranteed to be in sync with the Write Model, eliminating race conditions.
 
-#### 3.2 Read Model: The "World Model"
-
-*   **Technology:** Dgraph (Dgraph Cloud or self-hosted on GKE).
-*   **Data Model:** **Labeled Property Graph (LPG).** The schema will be denormalized and optimized for fast, multi-hop traversal queries.
-*   **Schema Definition:** Managed via a GraphQL schema file, stored in source control.
-*   **Responsibilities:**
-    1.  To provide the `crosscut-bpo` with a high-performance, context-rich view of the state of the enterprise.
-    2.  To act as a near-real-time cache of relevant data ingested from both the platform's Write Model and external SoRs.
-*   **Access:** Read access is granted to the `crosscut-bpo`. Write access is **exclusively granted** to the `Synchronization Pipeline` service.
-
-#### 3.3 The Synchronization Pipeline (CDC)
-
-*   **Purpose:** To provide a robust, low-latency data pipeline that synchronizes the Dgraph Read Model from the Postgres Write Model.
-*   **Technology & Flow:**
-    1.  **GCP Datastream:** Configured to use the Postgres instance as a source, capturing all WAL changes.
-    2.  **GCP Cloud Storage:** Datastream is configured to write change events as Avro/JSON files to a dedicated GCS bucket.
-    3.  **GCP Pub/Sub:** GCS is configured to publish a notification to a Pub/Sub topic upon new file creation.
-    4.  **GCP Cloud Run Service (`sync-transformer`):** A dedicated Go service that:
-        *   Is triggered by the Pub/Sub topic.
-        *   Reads the change file from GCS.
-        *   Contains the business logic to transform the normalized Anchor Model data into the denormalized LPG structure.
-        *   Writes the transformed data to the Dgraph instance.
-
-#### 3.4 The Orchestration Layer
+#### 3.3 The Orchestration Layer
 
 This layer consists of two tightly coupled components.
 
@@ -85,10 +64,9 @@ This layer consists of two tightly coupled components.
     *   **Responsibilities:**
         1.  Expose a synchronous REST API for GCP Workflows to call (e.g., `/decide-action`, `/audits`).
         2.  Contain all complex, domain-spanning business logic.
-        3.  Execute GraphQL queries against the Dgraph Read Model to gather context.
-        4.  Contain the CUElang engine to validate the *structure and integrity of its own processes* (e.g., plan schemas).
-        5.  Act as the gatekeeper for all writes to the Postgres Write Model.
-        6.  Act as the client for all external SoR APIs (PLM, ERP).
+        3.  Execute queries against the **Postgres Materialized Views** to gather context.
+        4.  Act as the gatekeeper for all writes to the Postgres Write Model, wrapping writes and view refreshes in a single transaction.
+        5.  Act as the client for all external SoR APIs (PLM, ERP).
 
 ### 4.0 Core Workflows & Interactions
 
@@ -99,43 +77,33 @@ This section defines the primary interaction patterns between the components.
 *   **Flow:**
     1.  An external SoR (e.g., PLM) publishes a business event (e.g., `PartApproved`) to a dedicated Pub/Sub topic.
     2.  The `crosscut-bpo` service subscribes to this topic.
-    3.  Upon receiving an event, the BPO performs a write to the Postgres Anchor Model to record this external fact in its own auditable log.
-    4.  This write is then automatically propagated to the Dgraph Read Model via the Synchronization Pipeline.
+    3.  Upon receiving an event, the BPO performs a transactional write to the Postgres Anchor Model to record this external fact and refreshes the relevant materialized views.
 
 #### 4.2 Business Process Execution
 *   **Pattern:** Orchestrated, synchronous calls within an asynchronous workflow.
 *   **Flow:**
-    1.  An event (either external, or one published by the BPO itself) triggers a GCP Workflow.
+    1.  An event triggers a GCP Workflow.
     2.  The Workflow makes an HTTP call to the BPO's `/decide-action` endpoint.
-    3.  The BPO gathers context (from Dgraph), consults external experts (e.g., calling the PLM's `/validate` API), and returns a "Command List" to the Workflow.
+    3.  The BPO gathers context by querying the **Postgres Materialized Views**, consults external experts, and returns a "Command List" to the Workflow.
     4.  The Workflow executes the commands (e.g., calling `DocGen`).
     5.  Upon completion, the Workflow calls the BPO's `/audits` endpoint.
-    6.  The BPO writes the final, successful outcome to the Postgres Write Model.
+    6.  The BPO performs a final transactional write to the Postgres Write Model and refreshes the views.
 
 ### 5.0 Phased Implementation Plan
 
 The platform will be built in logical, value-delivering phases.
 
-#### Phase 1: The Core Data Pipeline & Read Model (4-6 weeks)
-*   **Goal:** Establish the foundational CQRS data flow.
+#### Phase 1: The Unified Data Layer & BPO (6-8 weeks)
+*   **Goal:** Establish the foundational data layer and orchestrate the first end-to-end business process.
 *   **Tasks:**
-    *   Define the initial Anchor Model and LPG schemas for a single domain (e.g., Documents).
-    *   Provision Cloud SQL (Postgres) and Dgraph instances.
-    *   Build and deploy the `sync-transformer` service.
-    *   Configure the full Datastream -> GCS -> Pub/Sub -> Cloud Run pipeline.
-*   **Definition of Done:** A manual `INSERT` into a Postgres table is automatically and correctly reflected in the Dgraph instance within seconds.
-
-#### Phase 2: The BPO and a Single Workflow (4-6 weeks)
-*   **Goal:** Implement the "Brain" and orchestrate the first end-to-end business process.
-*   **Tasks:**
-    *   Build the `crosscut-bpo` Go service with its core API endpoints.
-    *   Integrate Dgraph client for reads and Postgres client for writes.
+    *   Define the initial Anchor Model and Materialized View schemas for a single domain.
+    *   Provision the Cloud SQL (Postgres) instance.
+    *   Build the `crosscut-bpo` Go service with its core API endpoints and data access logic (writes to tables, refreshes views, reads from views).
     *   Create a mock "expert" service (e.g., a Mock PLM).
     *   Define and deploy a simple GCP Workflow (e.g., "Spec Change -> Re-render Manual").
-    *   Integrate `DocGen` as the first "worker" service.
-*   **Definition of Done:** A simulated Pub/Sub event successfully triggers the GCP Workflow, which calls the BPO, which consults the mock PLM and commands DocGen to produce a document, and finally records the audit in Postgres.
+*   **Definition of Done:** A simulated Pub/Sub event successfully triggers a workflow that calls the BPO, which reads from and writes to the unified Postgres database, and commands a worker service.
 
-#### Phase 3: Integrate First Real SoR (3-4 weeks)
+#### Phase 2: Integrate First Real SoR (3-4 weeks)
 *   **Goal:** Replace a mock service with a real enterprise system.
 *   **Tasks:**
     *   Develop the integration layer for the first real SoR (e.g., the PLM).

@@ -1,3 +1,5 @@
+> **ARCHIVED DOCUMENT:** This document describes how to deploy Dgraph, a service that is not part of the current MVP architecture. The MVP, as defined in RFD-2, uses a simplified, Postgres-centric model. This document is preserved for future reference for a potential scaled version of the platform.
+
 🎉 Hypermode Agents Beta: natural language agent creation, 2,000+ integrations, export to code [Try Agents now! →](https://hypermode.com/login)
 
 [Hypermode home page![light logo](https://mintcdn.com/hypermode/KxRLwu8b3AQQ03et/images/logo/light.svg?fit=max&auto=format&n=KxRLwu8b3AQQ03et&q=85&s=cbf249051f5830b6b3a36f9397c8c1cd)![dark logo](https://mintcdn.com/hypermode/KxRLwu8b3AQQ03et/images/logo/dark.svg?fit=max&auto=format&n=KxRLwu8b3AQQ03et&q=85&s=ec9b5c357dcbd3f26eb8dc9adbfd6ed4)](https://docs.hypermode.com/)
@@ -16,17 +18,17 @@ Deploying Dgraph on Google Cloud Run
 
 [Hypermode](https://docs.hypermode.com/introduction) [Modus](https://docs.hypermode.com/modus/overview) [Dgraph](https://docs.hypermode.com/dgraph/overview) [Badger](https://docs.hypermode.com/badger/overview)
 
-# [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#deploying-dgraph-on-google-cloud-run)  Deploying Dgraph on Google Cloud Run
+# [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#deploying-dgraph-on-google-cloud-run)  Deploying Dgraph on Google Cloud Run
 
 This guide walks you through deploying Dgraph, a distributed graph database, on Google Cloud Run.
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#prerequisites)  Prerequisites
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#prerequisites)  Prerequisites
 
 - Google Cloud Platform account with billing enabled
 - Google Cloud SDK ( `gcloud`) installed and configured
 - Docker installed locally
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#architecture-overview)  Architecture Overview
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#architecture-overview)  Architecture Overview
 
 Dgraph consists of three main components:
 
@@ -36,7 +38,7 @@ Dgraph consists of three main components:
 
 This example uses the Dgraph standalone Docker image which includes both the alpha and zero nodes in a single container.
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#step-1%3A-project-setup)  Step 1: Project Setup
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#step-1%3A-project-setup)  Step 1: Project Setup
 
 ![](https://mintcdn.com/hypermode/Bh8TudK94wxY1WpI/images/dgraph/guides/cloud-run/cloud-run-dashboard.png?fit=max&auto=format&n=Bh8TudK94wxY1WpI&q=85&s=7c68a672701cfa39c0811a5376f372f4)First, set up your Google Cloud project and enable necessary APIs:
 
@@ -90,7 +92,7 @@ gcloud compute networks vpc-access connectors create dgraph-connector \
 
 ```
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#step-2%3A-create-dgraph-configuration)  Step 2: Create Dgraph Configuration
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#step-2%3A-create-dgraph-configuration)  Step 2: Create Dgraph Configuration
 
 Create a directory for your Dgraph deployment:
 
@@ -188,7 +190,7 @@ wait
 
 ```
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#step-3%3A-build-and-push-container-image)  Step 3: Build and Push Container Image
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#step-3%3A-build-and-push-container-image)  Step 3: Build and Push Container Image
 
 Build your Docker image and push it to Google Container Registry.You’ll first need to authorize `docker` to use the `gcloud` credentials:
 
@@ -227,7 +229,7 @@ docker push gcr.io/$PROJECT_ID/dgraph-cr
 
 ```
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#step-4%3A-deploy-to-cloud-run)  Step 4: Deploy to Cloud Run
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#step-4%3A-deploy-to-cloud-run)  Step 4: Deploy to Cloud Run
 
 Deploy Dgraph Alpha to Cloud Run:
 
@@ -279,11 +281,11 @@ Ratel web UI can be run locally using `docker run -it -p 8000:8000 dgraph/ratel:
 
 ![](https://mintcdn.com/hypermode/Bh8TudK94wxY1WpI/images/dgraph/guides/cloud-run/ratel-setup.png?fit=max&auto=format&n=Bh8TudK94wxY1WpI&q=85&s=113bfe8ff8d15415608638e4abb821a1)![](https://mintcdn.com/hypermode/Bh8TudK94wxY1WpI/images/dgraph/guides/cloud-run/ratel-web-ui.png?fit=max&auto=format&n=Bh8TudK94wxY1WpI&q=85&s=260c76a4f8055aae939bc086922f42a2)
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#dgraph-cloud-migration-steps)  Dgraph Cloud Migration Steps
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#dgraph-cloud-migration-steps)  Dgraph Cloud Migration Steps
 
 To migrate from Dgraph Cloud to your self-hosted Cloud Run instance, follow these steps:
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#migration-data)  Migration Data
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#migration-data)  Migration Data
 
 We’ve now downloaded the following files from Dgraph Cloud:
 
@@ -293,7 +295,7 @@ We’ve now downloaded the following files from Dgraph Cloud:
 
 We’ll now migrate this data to our Dgraph instance running in Cloud Run.
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#prepare-migration-environment)  Prepare Migration Environment
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#prepare-migration-environment)  Prepare Migration Environment
 
 Create a local directory for migration files:
 
@@ -317,9 +319,9 @@ head -20 rdf
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#schema-migration)  Schema Migration
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#schema-migration)  Schema Migration
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#option-a%3A-load-schema-via-live-loader)  Option A: Load Schema Via Live Loader
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#option-a%3A-load-schema-via-live-loader)  Option A: Load Schema Via Live Loader
 
 Copy
 
@@ -332,7 +334,7 @@ dgraph live --schema schema \
 
 ```
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#option-b%3A-load-schema-via-http-api)  Option B: Load Schema Via HTTP API
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#option-b%3A-load-schema-via-http-api)  Option B: Load Schema Via HTTP API
 
 Copy
 
@@ -345,7 +347,7 @@ curl -X POST https://api.yourdomain.com/admin/schema \
 
 ```
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#option-c%3A-load-graphql-schema-if-using-graphql)  Option C: Load GraphQL Schema (if using GraphQL)
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#option-c%3A-load-graphql-schema-if-using-graphql)  Option C: Load GraphQL Schema (if using GraphQL)
 
 Copy
 
@@ -358,9 +360,9 @@ curl -X POST https://api.yourdomain.com/admin/schema/graphql \
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#data-migration)  Data Migration
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#data-migration)  Data Migration
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#option-a%3A-data-migration-using-live-loader)  Option A: Data Migration Using Live Loader
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#option-a%3A-data-migration-using-live-loader)  Option A: Data Migration Using Live Loader
 
 For large datasets, use the live loader for optimal performance:
 
@@ -377,7 +379,7 @@ dgraph live --files rdf \
 
 ```
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#option-b%3A-data-migration-using-bulk-loader-offline)  Option B: Data Migration Using Bulk Loader (Offline)
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#option-b%3A-data-migration-using-bulk-loader-offline)  Option B: Data Migration Using Bulk Loader (Offline)
 
 For very large datasets, consider using the Dgraph bulk loader. This requires temporarily scaling down your Cloud Run instance:**Create Bulk Loader Container**Create `bulk-loader.Dockerfile`:
 
@@ -399,10 +401,10 @@ RUN mkdir -p /data/out
 WORKDIR /data
 
 # Run bulk loader
-CMD ["dgraph", "bulk", \\
-  "--files", "/data/rdf", \\
-  "--schema", "/data/schema", \\
-  "--out", "/data/out", \\
+CMD ["dgraph", "bulk", \
+  "--files", "/data/rdf", \
+  "--schema", "/data/schema", \
+  "--out", "/data/out", \
   "--zero", "localhost:5080"]
 
 ```
@@ -467,9 +469,9 @@ gcloud run services update dgraph-alpha --min-instances=1 --max-instances=3 --re
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#validation-and-testing)  Validation and Testing
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#validation-and-testing)  Validation and Testing
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#schema-validation)  Schema Validation
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#schema-validation)  Schema Validation
 
 Copy
 
@@ -482,7 +484,7 @@ curl -X POST https://api.yourdomain.com/query \
 
 ```
 
-#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#data-validation)  Data Validation
+#### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#data-validation)  Data Validation
 
 Copy
 
@@ -507,7 +509,7 @@ curl -X POST https://api.yourdomain.com/query \
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#migration-cleanup)  Migration Cleanup
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#migration-cleanup)  Migration Cleanup
 
 Copy
 
@@ -528,9 +530,9 @@ gcloud compute instances delete dgraph-migration-vm --zone us-central1-a
 
 ```
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#optional-configurations)  Optional Configurations
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#optional-configurations)  Optional Configurations
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#optimize-cloud-run-configuration)  Optimize Cloud Run Configuration
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#optimize-cloud-run-configuration)  Optimize Cloud Run Configuration
 
 Copy
 
@@ -546,7 +548,7 @@ gcloud run services update dgraph-alpha \
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#set-up-iam-and-security)  Set up IAM and Security
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#set-up-iam-and-security)  Set up IAM and Security
 
 Create a service account for Dgraph:
 
@@ -563,7 +565,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#configure-health-checks)  Configure Health Checks
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#configure-health-checks)  Configure Health Checks
 
 Create a health check endpoint by modifying your container to include a health check script:
 
@@ -592,7 +594,7 @@ curl -f http://localhost:8080/health || exit 1
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#testing-your-deployment)  Testing Your Deployment
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#testing-your-deployment)  Testing Your Deployment
 
 Once deployed, test your Dgraph instance:
 
@@ -609,7 +611,7 @@ curl $SERVICE_URL/health
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#set-up-monitoring-and-logging)  Set Up Monitoring and Logging
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#set-up-monitoring-and-logging)  Set Up Monitoring and Logging
 
 Enable Cloud Monitoring for your Cloud Run service:
 
@@ -640,7 +642,7 @@ conditions:
 
 ```
 
-### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#multi-region-deployment)  Multi-Region Deployment
+### [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#multi-region-deployment)  Multi-Region Deployment
 
 For high availability, deploy across multiple regions:
 
@@ -660,7 +662,7 @@ done
 
 ```
 
-## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run\#troubleshooting)  Troubleshooting
+## [​](https://docs.hypermode.com/dgraph/self-managed/cloud-run#troubleshooting)  Troubleshooting
 
 Common issues and solutions:
 

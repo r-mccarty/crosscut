@@ -11,8 +11,7 @@ This MVP is successful if we can trace a single, simulated `SchematicReleased` e
 | Full Architecture Component | MVP Simplification | Rationale |
 | :--- | :--- | :--- |
 | GCP Workflows | **In-Process Orchestration.** A single function call within the BPO will execute the sequence. | Avoids dependency on a managed cloud service. The *logic* of the sequence is what we're testing. |
-| Dgraph World Model | **A local `world-model.json` file.** | Simulates the read cache without the overhead of running a graph database. |
-| Postgres Anchor Model (Write) | **A local `audit-log.json` file.** | Simulates the auditable write model. Proves the BPO records its final state. |
+| Unified Postgres DB | **A local `audit-log.json` file.** The BPO reads from and writes to this single file. | Simulates a unified read/write model without the overhead of running a database. |
 | PLM & ERP Services | **A single `mock-plm-service`.** | Proves the "expert" pattern with one simple, controllable mock. |
 | DocGen2 & VizGen Workers | **A single `mock-docgen-service`.** | Proves the "worker" pattern. Doesn't need to generate a real document. |
 | Pub/Sub | **A `curl` command to a REST endpoint.** | Simulates an event trigger in the simplest way possible for a developer. |
@@ -21,7 +20,7 @@ This MVP is successful if we can trace a single, simulated `SchematicReleased` e
 
 The entire MVP will run within a single `docker-compose.yml` file, making it instantly launchable in GitHub Codespaces.
 
-1.  **`crosscut-bpo` (The Brain):** The core Go service. It will expose one primary REST endpoint to trigger the workflow. It will read from its local `world-model.json` and write to `audit-log.json`.
+1.  **`crosscut-bpo` (The Brain):** The core Go service. It will expose one primary REST endpoint to trigger the workflow. It will use a single `audit-log.json` file for its read context and as its write target.
 2.  **`mock-plm-service` (The Expert):** A tiny Go or Python web service (e.g., using Gin or Flask). It exposes one endpoint: `POST /enrich-plan`. It reads its own "database" from a `plm-data.json` file to find the correct voltage for a given product.
 3.  **`mock-docgen-service` (The Worker):** Another tiny web service. It exposes one endpoint: `POST /render`. It receives the final plan, prints it to the console (to prove it got the right data), and returns a `200 OK` with a fake document URL.
 
@@ -46,7 +45,7 @@ This is the entire test case for the MVP.
 
 3.  **The Orchestration (What happens inside the containers):**
     a. The `crosscut-bpo` service receives the request.
-    b. It reads `world-model.json` to determine that a `schematic.released` event requires a `DVT_Procedure` to be created.
+    b. It reads its history from `audit-log.json` to determine that a `schematic.released` event requires a `DVT_Procedure` to be created.
     c. It generates a "template plan": `{"product": "ROUTER-100", "components": [{"name": "PowerTest", "voltage": "UNRESOLVED"}]}`.
     d. It makes an HTTP call to the `mock-plm-service` with this template plan.
     e. The `mock-plm-service` reads `plm-data.json`, finds that `ROUTER-100` requires `12V`, and returns the enriched plan: `{"...": "...", "voltage": "12V"}`.
@@ -80,7 +79,6 @@ This is the entire test case for the MVP.
 │   ├── main.go
 │   └── Dockerfile
 ├── data/                      # Simulated data stores
-│   ├── world-model.json
 │   ├── plm-data.json
 │   └── audit-log.json         # Will be created on first run
 └── README.md                  # Instructions for running the MVP

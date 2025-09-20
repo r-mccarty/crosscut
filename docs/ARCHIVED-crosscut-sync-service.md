@@ -1,3 +1,5 @@
+> **ARCHIVED DOCUMENT:** This document describes a scaled version of the CrossCut architecture that includes a dedicated sync service and a separate graph database. The current MVP architecture, as defined in RFD-2, uses a simplified, Postgres-centric model. This document is preserved for future reference.
+
 # Technical Specification: The CrossCut Synchronization Service (`sync-transformer`)
 
 **Version:** 1.0
@@ -163,4 +165,3 @@ func handleEvent(event ChangeEvent) error {
 The `sync-transformer` service, as designed, does not need to wrap its Dgraph writes in an explicit, multi-operation transaction. This is because each incoming message from the CDC pipeline represents a single, atomic change from the source database.
 
 The use of an **idempotent `upsert` operation** in Dgraph is the key to ensuring data consistency. This atomic operation, combined with the "at-least-once" delivery guarantee of Pub/Sub, ensures that even if an event is processed multiple times, the final state of the data in Dgraph will be correct. Dgraph transactions are reserved for cases where multiple, distinct operations (e.g., several queries and mutations) must all succeed or fail as a single, atomic unit.
-

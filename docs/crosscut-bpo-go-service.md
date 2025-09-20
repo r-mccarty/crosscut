@@ -11,139 +11,80 @@
 ### 2. Core Responsibilities
 
 1.  **Listen:** Ingests high-level business intents from external systems, either via direct API calls or by subscribing to events on a Pub/Sub topic.
-2.  **Decide:** Gathers the necessary context from the Dgraph "World Model" read cache to understand the full scope of an intent. It then uses its internal logic and CUE validation to generate a concrete, actionable plan.
+2.  **Decide:** Gathers the necessary context from the **Postgres Read Model (Materialized Views)** to understand the full scope of an intent. It then uses its internal logic and CUE validation to generate a concrete, actionable plan.
 3.  **Instruct:** Returns a structured "Command List" to its caller (GCP Workflows), detailing the precise sequence and parameters of tasks to be executed by worker services (`DocGen`, `VizGen`, external APIs, etc.).
-4.  **Audit:** Provides an endpoint for workflows to post final status updates, which are recorded in the Postgres Write Model as an immutable, auditable log of the business process.
+4.  **Audit & Synchronize:** Provides an endpoint for workflows to post final status updates. It writes these updates to the Postgres Write Model (Anchor Schema) and refreshes the relevant Materialized Views within a single ACID transaction.
 
 ### 3. Architectural Pattern
 
-The `crosscut-bpo` service is the "Brain" in a "Brain and Spinal Cord" model.
-
-*   **The Brain (This Service):** A stateless Go service deployed on **GCP Cloud Run**. It handles all complex logic, validation, and plan generation. It is optimized for fast, synchronous request/response cycles.
-*   **The Spinal Cord (GCP Workflows):** A managed orchestration service. It handles all stateful, long-running processes, including sequencing, retries, parallelism, and waiting. It calls the `crosscut-bpo` service to get its instructions.
-*   **Data Model:** The service is a client to two databases but owns neither. It reads from the Dgraph Read Model and writes audit logs to the Postgres Write Model.
+*   **The Brain (This Service):** A stateless Go service deployed on **GCP Cloud Run**.
+*   **The Spinal Cord (GCP Workflows):** A managed orchestration service that calls the `crosscut-bpo` service to get its instructions.
+*   **Data Model:** The service is the exclusive client of the **Unified Postgres Database**. It performs transactional writes to the Anchor Model (Write Model), reads from denormalized Materialized Views (Read Model), and manages the synchronous refresh of the views.
 
 ### 4. Key Internal Components (Go Service Structure)
 
-The Go service will be organized into a set of clear, modular packages.
-
-*   `internal/api`: Contains the HTTP handlers for the service's public API (e.g., using the `net/http` package or a lightweight router like `chi`). This is the primary entry point for GCP Workflows.
-*   `internal/events`: Contains the handlers for consuming messages from a Pub/Sub topic. This is the entry point for asynchronous event triggers. These handlers will typically parse the event and initiate a new GCP Workflow.
-*   `internal/workflows`: Contains the core business logic for each major process. This is where the "recipes" live. For example, `new_revision_workflow.go` would contain the function that knows how to handle a `SchematicReleased` event.
-*   `internal/activities`: Contains the small, single-responsibility, testable functions that are chained together by a workflow. Examples:
-    *   `GeneratePartialPlanWithAI(intent)`
-    *   `EnrichPlanFromPLM(plan)`
-    *   `EnrichPlanFromERP(plan)`
-    *   `ValidatePlanStructure(plan)`
-*   `internal/services`: A collection of client packages for interacting with all external services. Each client encapsulates the API logic for talking to another system.
-    *   `docgen_client.go`
-    *   `vizgen_client.go`
-    *   `plm_client.go`
-*   `internal/database`: A data access layer for writing audit logs to the Postgres (Anchor Model) database. Uses `pgx`.
-*   `internal/graph`: A data access layer for querying the Dgraph "World Model". Uses a GraphQL client library.
-*   `internal/cue`: A dedicated package that wraps the `cuelang.org/go` library. It is responsible for loading the process validation schemas and running them against generated plans.
+*   `internal/api`: Contains the HTTP handlers for the service's public API.
+*   `internal/events`: Contains the handlers for consuming messages from Pub/Sub.
+*   `internal/workflows`: Contains the core business logic for each major process.
+*   `internal/activities`: Contains small, single-responsibility, testable functions.
+*   `internal/services`: A collection of client packages for interacting with all external services (PLM, ERP, etc.).
+*   `internal/database`: A data access layer for all interactions with the Postgres database, using `pgx`. This package will handle:
+    *   Writing to the Anchor Model tables.
+    *   Reading from the Materialized Views.
+    *   Issuing `REFRESH MATERIALIZED VIEW CONCURRENTLY` commands.
+    *   Managing ACID transactions that wrap both writes and refreshes.
+*   `internal/cue`: A dedicated package that wraps the `cuelang.org/go` library for process validation.
 
 ### 5. Technology Stack
 
 *   **Language:** Go (latest stable version)
 *   **API Framework:** `net/http` with `chi` for routing.
-*   **Database Libraries:** `jackc/pgx` for Postgres, a standard GraphQL client for Dgraph.
+*   **Database Library:** `jackc/pgx` for all Postgres interactions.
 *   **Validation:** `cuelang.org/go`
-*   **Configuration:** `viper` or standard env vars.
 *   **Deployment Target:** GCP Cloud Run (containerized with Docker).
 
 ### 6. API Specification (Primary Endpoints)
 
-The service exposes a minimal, task-oriented API designed to be called by GCP Workflows.
+(No changes to the API specification itself)
 
 *   **Endpoint:** `POST /v1/decisions/generate-commands`
-    *   **Purpose:** The primary "ask the brain" endpoint.
-    *   **Request Body (`Intent`):**
-        ```json
-        {
-          "trigger_event": "schematic.released",
-          "payload": {
-            "product_name": "ROUTER-100",
-            "revision": "C",
-            "source_url": "gcs://..."
-          }
-        }
-        ```
-    *   **Success Response (200 OK - `CommandList`):**
-        ```json
-        {
-          "commands": [
-            {
-              "service_target": "DocGen2",
-              "endpoint": "/v1/render",
-              "payload": { "...fully resolved doc plan..." }
-            },
-            {
-              "service_target": "WMS",
-              "endpoint": "/v1/work-items",
-              "payload": { "...new ticket data..." }
-            }
-          ]
-        }
-        ```
-    *   **Failure Response (400/500):** Standard error JSON.
-
 *   **Endpoint:** `POST /v1/audits`
-    *   **Purpose:** To record the final outcome of a business process.
-    *   **Request Body (`WorkflowAudit`):**
-        ```json
-        {
-          "workflow_id": "gcp-workflow-instance-123",
-          "workflow_name": "NewRevisionWorkflow",
-          "status": "SUCCESS",
-          "trigger_event": { "...original event..." },
-          "artifacts_generated": [
-            { "type": "document", "url": "gcs://..." },
-            { "type": "ticket", "id": "JIRA-456" }
-          ]
-        }
-        ```
-    *   **Success Response (202 Accepted):** No body needed.
 
-### 7. Transactional Integrity in the Write Model
+### 7. Transactional Integrity
 
-Unlike the `sync-transformer` which handles single, idempotent operations, the `crosscut-bpo` service **must** use ACID-compliant transactions when writing to the Postgres Write Model. 
-
-The reason is that a single business process decision or audit event may require writing multiple, dependent records to the database. For example, completing a workflow might involve:
-
-1.  Creating a final `WorkflowAudit` record.
-2.  Updating the status of a parent `ProcessInstance` record.
-3.  Writing several `ArtifactGenerated` records.
-
-These operations must be performed within a single transaction. If any step fails, the entire transaction must be rolled back. This ensures that the platform's auditable log remains in a consistent and trustworthy state at all times, preventing partial or corrupt records of a business process.
+The `crosscut-bpo` service **must** use ACID-compliant transactions when writing to Postgres. A single business process decision requires writing to the Anchor Model and refreshing the Materialized Views in a single, atomic operation. If any step fails, the entire transaction must be rolled back to ensure the Write and Read models never become inconsistent.
 
 ### 8. Sequence of Interaction
 
-This diagram shows how the stateless BPO service fits into the stateful GCP Workflow.
+This diagram shows the simplified interaction in the MVP architecture.
 
 ```mermaid
 sequenceDiagram
     participant PubSub
     participant Workflow as GCP Workflow
     participant BPO as crosscut-bpo
+    participant Postgres as Unified DB
     participant PLM
     participant DocGen
     
     PubSub ->>+ Workflow: 1. Event triggers workflow
     
-    Workflow ->>+ BPO: 2. POST /v1/decisions/generate-commands (with event payload)
+    Workflow ->>+ BPO: 2. POST /v1/decisions/generate-commands
     
-    Note over BPO: Gathers context from Dgraph (not shown)
-    BPO ->> PLM: 2a. Asks for enrichment/validation
+    BPO->>+Postgres: 3. BEGIN TRANSACTION
+    BPO->>Postgres: 4. Write to Anchor Model
+    BPO->>Postgres: 5. REFRESH MATERIALIZED VIEW
+    BPO-->>-Postgres: 6. COMMIT
+
+    Note over BPO: Gathers context by reading from Materialized Views
+    BPO ->> PLM: 6a. Asks for enrichment/validation
     PLM -->> BPO: Returns data
     
-    BPO -->>- Workflow: 3. Returns CommandList (plan for DocGen)
+    BPO -->>- Workflow: 7. Returns CommandList
     
-    Workflow ->>+ DocGen: 4. Executes command: POST /v1/render (with plan)
-    DocGen -->>- Workflow: 5. Returns render job status
+    Workflow ->>+ DocGen: 8. Executes command
+    DocGen -->>- Workflow: 9. Returns status
     
-    Workflow ->>+ BPO: 6. POST /v1/audits (with final status)
-    BPO -->>- Workflow: 7. 202 Accepted
-    
-    Workflow -->>- PubSub: 8. (Optional) Publishes final event
+    Workflow ->>+ BPO: 10. POST /v1/audits
+    BPO-->>-Workflow: 11. 202 Accepted
 ```
