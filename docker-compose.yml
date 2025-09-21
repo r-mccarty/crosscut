@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  crosscut-bpo:
+    build:
+      context: ./crosscut-bpo
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PLM_SERVICE_URL=http://mock-plm-service:8081
+      - DOCGEN_SERVICE_URL=http://mock-docgen-service:8082
+      - AUDIT_LOG_PATH=/app/data/audit-log.json
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - mock-plm-service
+      - mock-docgen-service
+    networks:
+      - crosscut-network
+
+  mock-plm-service:
+    build:
+      context: ./mock-plm-service
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - PLM_DATA_PATH=/app/data/plm-data.json
+    volumes:
+      - ./data:/app/data
+    networks:
+      - crosscut-network
+
+  mock-docgen-service:
+    build:
+      context: ./mock-docgen-service
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - PORT=8082
+    networks:
+      - crosscut-network
+
+networks:
+  crosscut-network:
+    driver: bridge
+
+volumes:
+  data:

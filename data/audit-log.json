@@ -1,0 +1,71 @@
+[
+  {
+    "timestamp": "2025-09-21T03:28:37.720219775Z",
+    "workflow_id": "wf-1758425317",
+    "event": "schematic.released",
+    "action": "workflow_started",
+    "status": "success",
+    "details": {
+      "product_name": "ROUTER-100",
+      "revision": "C"
+    }
+  },
+  {
+    "timestamp": "2025-09-21T03:28:37.721160938Z",
+    "workflow_id": "wf-1758425317",
+    "event": "schematic.released",
+    "action": "template_plan_generated",
+    "status": "success",
+    "details": {
+      "template": {
+        "components": [
+          {
+            "name": "PowerTest",
+            "voltage": "UNRESOLVED"
+          }
+        ],
+        "product": "ROUTER-100"
+      }
+    }
+  },
+  {
+    "timestamp": "2025-09-21T03:28:37.724712062Z",
+    "workflow_id": "wf-1758425317",
+    "event": "schematic.released",
+    "action": "plm_consultation",
+    "status": "success",
+    "details": {
+      "enriched_plan": {
+        "components": [
+          {
+            "name": "PowerTest",
+            "voltage": "12V"
+          }
+        ],
+        "product": "ROUTER-100"
+      }
+    }
+  },
+  {
+    "timestamp": "2025-09-21T03:28:37.805218671Z",
+    "workflow_id": "wf-1758425317",
+    "event": "schematic.released",
+    "action": "docgen_command",
+    "status": "success",
+    "details": {
+      "document_url": "gcs://fake-bucket/ROUTER-100-DVT-Procedure-Rev-C-20250921-032837.docx",
+      "filename": "ROUTER-100-DVT-Procedure-Rev-C.docx",
+      "generation_time_ms": 199
+    }
+  },
+  {
+    "timestamp": "2025-09-21T03:28:37.805635497Z",
+    "workflow_id": "wf-1758425317",
+    "event": "schematic.released",
+    "action": "workflow_completed",
+    "status": "success",
+    "details": {
+      "final_document_url": "gcs://fake-bucket/ROUTER-100-DVT-Procedure-Rev-C-20250921-032837.docx"
+    }
+  }
+]

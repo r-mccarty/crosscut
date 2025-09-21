@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "name": "ROUTER-100",
+      "voltage": "12V",
+      "description": "High-performance network router",
+      "revision": "C",
+      "components": [
+        {
+          "name": "PowerTest",
+          "voltage": "12V",
+          "test_type": "power_supply_validation"
+        }
+      ]
+    },
+    {
+      "name": "SWITCH-200",
+      "voltage": "24V",
+      "description": "Managed network switch",
+      "revision": "B",
+      "components": [
+        {
+          "name": "PowerTest",
+          "voltage": "24V",
+          "test_type": "power_supply_validation"
+        }
+      ]
+    }
+  ]
+}
