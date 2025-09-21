@@ -10,7 +10,7 @@ This document outlines the implementation plan for the **CrossCut Platform**, an
 
 **The mission of this platform is singular: To act as the intelligent, connective tissue between our core Systems of Record (SoRs), transforming a series of manual handoffs into a single, automated, and auditable value chain.**
 
-The platform is designed as a "Conductor and Experts" model. A central orchestration layer, the **Business Process Orchestrator (BPO)**, will listen for business events, make intelligent decisions by consulting a high-performance "World Model," and command other services to perform work. It will enforce process integrity while deferring all domain-specific validation to the authoritative SoRs.
+The platform is designed as a "Conductor and Experts" model. A central orchestration layer, the **Business Process Orchestrator (BPO)**, will listen for business events, make intelligent decisions by consulting its own process state and dynamically querying authoritative Systems of Record (SoRs) for business context, and command other services to perform work. It will enforce process integrity while deferring all domain-specific validation to the authoritative SoRs.
 
 ### 2.0 Architectural Requirements & Constraints
 
@@ -38,10 +38,10 @@ For the MVP, a single Cloud SQL for PostgreSQL instance will serve as both the t
     *   **Data Model:** **Anchor Modeling (6NF).** This remains the core of the auditable log, providing a complete, immutable history of all orchestrated actions by prioritizing `INSERT`s over `UPDATE`s.
     *   **Access:** Write access is **exclusively granted** to the `crosscut-bpo` service account.
 
-*   **Read Model (The "World Model")**
+*   **Read Model (Process State Views)**
     *   **Technology:** PostgreSQL **Materialized Views**.
-    *   **Data Model:** A series of denormalized views that join data from the Anchor Model tables into wide, easy-to-query relational structures.
-    *   **Responsibilities:** To provide the `crosscut-bpo` with a high-performance, context-rich, and strongly consistent view of the state of the enterprise.
+    *   **Data Model:** A series of denormalized views that join data from the Anchor Model tables into wide, easy-to-query relational structures focused on CrossCut's own process orchestration data.
+    *   **Responsibilities:** To provide the `crosscut-bpo` with a high-performance view of its own workflow state, process history, and audit trail. **Note:** Business context comes from dynamic SoR consultation, not from stored enterprise data.
 
 #### 3.2 The Synchronization Mechanism
 
@@ -82,40 +82,43 @@ This section defines the primary interaction patterns between the components.
 
 #### 4.2 Dynamic SoR Consultation and Caching
 
-CrossCut employs a "consult-on-demand" pattern for gathering business context, ensuring fresh, authoritative data while maintaining performance.
+CrossCut employs a "consult-on-demand" pattern for gathering business context, ensuring fresh, authoritative data while maintaining performance. **This is the primary mechanism for obtaining business context** - CrossCut does not store or aggregate business entity data from SoRs.
 
 *   **Pattern:** Dynamic API consultation with session-scoped caching.
+*   **Data Boundaries:** CrossCut's materialized views contain only its own process orchestration data. All business context (product data, test results, BOMs, etc.) comes from real-time SoR consultation.
 *   **Technology Stack:**
     *   HTTP clients for SoR API integration
     *   Redis or in-memory cache for session data
     *   Circuit breakers for SoR availability handling
 *   **Flow:**
-    1.  **Context Assessment:** BPO analyzes its audit trail to understand current workflow state and identify required external context.
+    1.  **Context Assessment:** BPO analyzes its own audit trail and process state to understand current workflow context and identify required external business data.
     2.  **Cache Check:** Check session cache for recently fetched SoR data within the decision window.
-    3.  **SoR Consultation:** Make targeted API calls to relevant SoRs for missing or stale context.
-    4.  **Worldview Composition:** Aggregate SoR responses with internal process state to form decision context.
-    5.  **Caching:** Store SoR responses in session cache with appropriate TTL for subsequent queries.
-    6.  **Audit Trail:** Record SoR consultation details (which systems, what data, response times) in audit log.
+    3.  **SoR Consultation:** Make targeted API calls to authoritative SoRs to retrieve current business context (product specs, test results, approval status, etc.).
+    4.  **Worldview Composition:** Combine SoR responses with CrossCut's own process state to form complete decision context. **Important:** The "worldview" is ephemeral and session-scoped, not persisted.
+    5.  **Caching:** Store SoR responses in session cache with appropriate TTL for subsequent queries within the same decision cycle.
+    6.  **Audit Trail:** Record SoR consultation details (which systems, what data, response times) in CrossCut's audit log for process transparency.
 
 *   **Benefits:**
-    *   Always operates on current, authoritative business data
-    *   No complex ETL processes or data synchronization
-    *   Clear data ownership boundaries
-    *   Reduced storage overhead and consistency issues
+    *   Always operates on current, authoritative business data from SoRs
+    *   No complex ETL processes or cross-system data synchronization
+    *   Clear data ownership boundaries - SoRs own business data, CrossCut owns process data
+    *   Reduced storage overhead and eliminates cross-system consistency issues
+    *   Audit trail focuses on orchestration actions, not duplicated business data
 
 #### 4.3 Business Process Execution
 *   **Pattern:** Orchestrated, synchronous calls within an asynchronous workflow.
+*   **Data Flow:** CrossCut maintains its own process state while dynamically consulting SoRs for business context during decision-making.
 *   **Flow:**
     1.  An event triggers a GCP Workflow.
     2.  The Workflow makes an HTTP call to the BPO's `/decide-action` endpoint.
     3.  The BPO gathers context by:
-        a. Querying its own process state from the audit trail
-        b. Dynamically consulting relevant SoRs for fresh business context
-        c. Composing a worldview from authoritative, current data
-    4.  The BPO returns a "Command List" to the Workflow based on this fresh context.
+        a. **Process Context:** Querying its own materialized views to understand current workflow state and orchestration history
+        b. **Business Context:** Dynamically consulting relevant SoRs via API to retrieve current business entity data (product specs, test results, approvals, etc.)
+        c. **Decision Context:** Combining CrossCut's process state with fresh SoR business data to form ephemeral decision context
+    4.  The BPO returns a "Command List" to the Workflow based on this combined context.
     5.  The Workflow executes the commands (e.g., calling `DocGen`).
     6.  Upon completion, the Workflow calls the BPO's `/audits` endpoint.
-    7.  The BPO records the final orchestration outcome and SoR consultation details in its audit trail.
+    7.  The BPO records the orchestration outcome and SoR consultation metadata in its own audit trail. **Note:** Only process orchestration actions are audited, not business entity data which remains in SoRs.
 
 ### 5.0 Phased Implementation Plan
 
