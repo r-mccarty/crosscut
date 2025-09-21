@@ -47,14 +47,16 @@ According to `crosscut-bpo-mvp.md`, the MVP will include:
 - **Event-Driven Architecture:** All communication through events and APIs
 - **Immutable Audit Trail:** All actions must be recorded in the audit log
 - **Domain Separation:** BPO orchestrates, but defers to SoRs for domain logic
+- **Audit-Centric Data Model:** CrossCut owns only process orchestration data, consults SoRs dynamically for business context
 - **API-First Design:** Well-defined, versioned RESTful APIs
 - **Schema-Driven:** Use CUE for process validation, GraphQL schema for data models
 
 ### Data Patterns
 
-- **Writes:** Always use ACID transactions with Anchor Model inserts
-- **Reads:** Query materialized views for performance
-- **Synchronization:** Refresh materialized views within write transactions
+- **Writes:** Always use ACID transactions with Anchor Model inserts for process data
+- **Reads:** Query materialized views for CrossCut's own process state and audit trail
+- **SoR Consultation:** Make dynamic API calls to SoRs for business context during decision-making
+- **Synchronization:** Refresh materialized views within write transactions (process data only)
 
 ### Technology Stack
 
@@ -70,7 +72,8 @@ Essential reading for understanding the project:
 
 - `README.md` - Project vision and overview
 - `GEMINI.md` - Comprehensive AI-generated project summary
-- `docs/RFD-2-Simplified-MVP-Architecture.md` - Current architecture specification
+- `docs/RFD-2-Simplified-MVP-Architecture.md` - Current MVP architecture specification
+- `docs/RFD-3-Read-Model-Scope-and-Data-Boundaries.md` - Audit-centric data model approach
 - `docs/crosscut-bpo-mvp.md` - MVP implementation plan
 - `docs/crosscut-platform-spec.md` - Detailed platform specification
 - `docs/crosscut-bpo-go-service.md` - BPO service specification

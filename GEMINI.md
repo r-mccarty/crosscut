@@ -8,11 +8,12 @@ CrossCut is designed to be the "central nervous system" for an engineering lifec
 
 The platform is built on a "Conductor and Experts" model. A central **Business Process Orchestrator (BPO)**, implemented as a Go microservice, acts as the "conductor" or "brain." It designs and directs workflows, but it defers to the existing SoRs as the "experts" for domain-specific logic and data validation.
 
-The architecture is event-driven and leverages a **Command Query Responsibility Segregation (CQRS)** pattern:
+The architecture is event-driven with a simplified, unified PostgreSQL data layer:
 
 *   **Write Model:** A **PostgreSQL** database using an **Anchor Modeling** schema serves as the immutable, auditable log of all orchestrated actions.
-*   **Read Model:** A **Dgraph** graph database provides a high-performance "World Model" for the BPO to make fast, context-aware decisions.
-*   **Synchronization:** A Change Data Capture (CDC) pipeline using **GCP Datastream** and a custom Go `sync-transformer` service keeps the Dgraph read model synchronized with the Postgres write model.
+*   **Read Model:** **PostgreSQL materialized views** focused on CrossCut's own process state and audit trail, not external SoR data.
+*   **Data Philosophy:** CrossCut follows an audit-centric approach - it owns only process orchestration data while consulting external Systems of Record (SoRs) dynamically for business context.
+*   **Synchronization:** Materialized views are refreshed synchronously within write transactions for immediate consistency.
 
 All services are designed to be deployed on **Google Cloud Platform (GCP)**, utilizing services like **Cloud Run**, **GCP Workflows**, and **Pub/Sub**.
 
@@ -32,20 +33,18 @@ docker build -t gcr.io/your-project-id/crosscut-bpo .
 # Push the container to Google Container Registry
 docker push gcr.io/your-project-id/crosscut-bpo
 
-# Deploy the service to GCP Cloud Run
+# Deploy the service to GCP Cloud Run with PostgreSQL connection
 gcloud run deploy crosscut-bpo \
   --image gcr.io/your-project-id/crosscut-bpo \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated
 
-# Build and deploy the Dgraph instance (as per dgraph-deployment-gcp.md)
-# This involves building a custom Docker container and deploying it to Cloud Run
-# with a persistent volume.
-# (See docs/dgraph-deployment-gcp.md for detailed steps)
-
-# Deploy the sync-transformer service
-# (Similar to the crosscut-bpo service)
+# Deploy PostgreSQL database (Cloud SQL)
+gcloud sql instances create crosscut-postgres \
+  --database-version=POSTGRES_13 \
+  --tier=db-f1-micro \
+  --region=us-central1
 ```
 
 ## Development Conventions
@@ -55,8 +54,9 @@ The documentation implies a set of strong development conventions:
 *   **Infrastructure as Code:** All GCP resources, including services, workflows, and Pub/Sub topics, should be defined in code (e.g., using Terraform or GCP's own configuration tools).
 *   **API-First Design:** The services communicate through well-defined, versioned RESTful APIs. The `crosscut-bpo-go-service.md` provides a clear specification for the BPO's API.
 *   **Schema-driven Development:**
-    *   The Dgraph schema is defined in a GraphQL schema file and stored in source control.
+    *   PostgreSQL schemas for both anchor model and materialized views are defined in migration files.
     *   The BPO uses CUE to validate the structure and integrity of its own processes and plans.
+    *   SoR integration contracts are defined through OpenAPI specifications.
 *   **Modularity:** The Go service is structured into clear, modular packages with distinct responsibilities (e.g., `api`, `events`, `workflows`, `database`).
 *   **Testing:** The emphasis on single-responsibility functions (`activities`) suggests a strong unit testing culture.
 *   **Phased Implementation:** The `crosscut-platform-spec.md` outlines a phased approach to development, starting with the core data pipeline and progressively adding functionality.
