@@ -64,9 +64,10 @@ This layer consists of two tightly coupled components.
     *   **Responsibilities:**
         1.  Expose a synchronous REST API for GCP Workflows to call (e.g., `/decide-action`, `/audits`).
         2.  Contain all complex, domain-spanning business logic.
-        3.  Execute queries against the **Postgres Materialized Views** to gather context.
-        4.  Act as the gatekeeper for all writes to the Postgres Write Model, wrapping writes and view refreshes in a single transaction.
-        5.  Act as the client for all external SoR APIs (PLM, ERP).
+        3.  Query its own process state from the audit trail to understand workflow context.
+        4.  Dynamically consult external SoR APIs to gather fresh business context for decisions.
+        5.  Maintain session-scoped cache for SoR data to optimize repeated queries within a decision cycle.
+        6.  Record all orchestration decisions and SoR consultations in the audit trail.
 
 ### 4.0 Core Workflows & Interactions
 
@@ -77,31 +78,59 @@ This section defines the primary interaction patterns between the components.
 *   **Flow:**
     1.  An external SoR (e.g., PLM) publishes a business event (e.g., `PartApproved`) to a dedicated Pub/Sub topic.
     2.  The `crosscut-bpo` service subscribes to this topic.
-    3.  Upon receiving an event, the BPO performs a transactional write to the Postgres Anchor Model to record this external fact and refreshes the relevant materialized views.
+    4.  The BPO dynamically consults relevant SoRs for current business context as needed during workflow execution.
 
-#### 4.2 Business Process Execution
+#### 4.2 Dynamic SoR Consultation and Caching
+
+CrossCut employs a "consult-on-demand" pattern for gathering business context, ensuring fresh, authoritative data while maintaining performance.
+
+*   **Pattern:** Dynamic API consultation with session-scoped caching.
+*   **Technology Stack:**
+    *   HTTP clients for SoR API integration
+    *   Redis or in-memory cache for session data
+    *   Circuit breakers for SoR availability handling
+*   **Flow:**
+    1.  **Context Assessment:** BPO analyzes its audit trail to understand current workflow state and identify required external context.
+    2.  **Cache Check:** Check session cache for recently fetched SoR data within the decision window.
+    3.  **SoR Consultation:** Make targeted API calls to relevant SoRs for missing or stale context.
+    4.  **Worldview Composition:** Aggregate SoR responses with internal process state to form decision context.
+    5.  **Caching:** Store SoR responses in session cache with appropriate TTL for subsequent queries.
+    6.  **Audit Trail:** Record SoR consultation details (which systems, what data, response times) in audit log.
+
+*   **Benefits:**
+    *   Always operates on current, authoritative business data
+    *   No complex ETL processes or data synchronization
+    *   Clear data ownership boundaries
+    *   Reduced storage overhead and consistency issues
+
+#### 4.3 Business Process Execution
 *   **Pattern:** Orchestrated, synchronous calls within an asynchronous workflow.
 *   **Flow:**
     1.  An event triggers a GCP Workflow.
     2.  The Workflow makes an HTTP call to the BPO's `/decide-action` endpoint.
-    3.  The BPO gathers context by querying the **Postgres Materialized Views**, consults external experts, and returns a "Command List" to the Workflow.
-    4.  The Workflow executes the commands (e.g., calling `DocGen`).
-    5.  Upon completion, the Workflow calls the BPO's `/audits` endpoint.
-    6.  The BPO performs a final transactional write to the Postgres Write Model and refreshes the views.
+    3.  The BPO gathers context by:
+        a. Querying its own process state from the audit trail
+        b. Dynamically consulting relevant SoRs for fresh business context
+        c. Composing a worldview from authoritative, current data
+    4.  The BPO returns a "Command List" to the Workflow based on this fresh context.
+    5.  The Workflow executes the commands (e.g., calling `DocGen`).
+    6.  Upon completion, the Workflow calls the BPO's `/audits` endpoint.
+    7.  The BPO records the final orchestration outcome and SoR consultation details in its audit trail.
 
 ### 5.0 Phased Implementation Plan
 
 The platform will be built in logical, value-delivering phases.
 
-#### Phase 1: The Unified Data Layer & BPO (6-8 weeks)
-*   **Goal:** Establish the foundational data layer and orchestrate the first end-to-end business process.
+#### Phase 1: Audit-Centric BPO with Local Storage (4-6 weeks)
+*   **Goal:** Establish the foundational process orchestration capability with audit-centric data approach.
 *   **Tasks:**
-    *   Define the initial Anchor Model and Materialized View schemas for a single domain.
-    *   Provision the Cloud SQL (Postgres) instance.
-    *   Build the `crosscut-bpo` Go service with its core API endpoints and data access logic (writes to tables, refreshes views, reads from views).
-    *   Create a mock "expert" service (e.g., a Mock PLM).
+    *   Define the initial Anchor Model schema for process audit trail.
+    *   Build the `crosscut-bpo` Go service with local file storage (audit-log.json for MVP).
+    *   Implement SoR consultation patterns with HTTP clients and session caching.
+    *   Create mock "expert" services (e.g., Mock PLM) with realistic API patterns.
     *   Define and deploy a simple GCP Workflow (e.g., "Spec Change -> Re-render Manual").
-*   **Definition of Done:** A simulated Pub/Sub event successfully triggers a workflow that calls the BPO, which reads from and writes to the unified Postgres database, and commands a worker service.
+    *   Implement circuit breakers and caching for SoR availability handling.
+*   **Definition of Done:** A simulated Pub/Sub event successfully triggers a workflow that calls the BPO, which consults mock SoRs for context, makes orchestration decisions, and commands worker services while maintaining a complete audit trail.
 
 #### Phase 2: Integrate First Real SoR (3-4 weeks)
 *   **Goal:** Replace a mock service with a real enterprise system.

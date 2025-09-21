@@ -20,7 +20,7 @@ This MVP is successful if we can trace a single, simulated `SchematicReleased` e
 
 The entire MVP will run within a single `docker-compose.yml` file, making it instantly launchable in GitHub Codespaces.
 
-1.  **`crosscut-bpo` (The Brain):** The core Go service. It will expose one primary REST endpoint to trigger the workflow. It will use a single `audit-log.json` file for its read context and as its write target.
+1.  **`crosscut-bpo` (The Brain):** The core Go service. It will expose one primary REST endpoint to trigger the workflow. It will use a single `audit-log.json` file to maintain its process audit trail, demonstrating the audit-centric approach where CrossCut owns only its own orchestration data.
 2.  **`mock-plm-service` (The Expert):** A tiny Go or Python web service (e.g., using Gin or Flask). It exposes one endpoint: `POST /enrich-plan`. It reads its own "database" from a `plm-data.json` file to find the correct voltage for a given product.
 3.  **`mock-docgen-service` (The Worker):** Another tiny web service. It exposes one endpoint: `POST /render`. It receives the final plan, prints it to the console (to prove it got the right data), and returns a `200 OK` with a fake document URL.
 
@@ -47,9 +47,9 @@ This is the entire test case for the MVP.
     a. The `crosscut-bpo` service receives the request.
     b. It reads its history from `audit-log.json` to determine that a `schematic.released` event requires a `DVT_Procedure` to be created.
     c. It generates a "template plan": `{"product": "ROUTER-100", "components": [{"name": "PowerTest", "voltage": "UNRESOLVED"}]}`.
-    d. It makes an HTTP call to the `mock-plm-service` with this template plan.
-    e. The `mock-plm-service` reads `plm-data.json`, finds that `ROUTER-100` requires `12V`, and returns the enriched plan: `{"...": "...", "voltage": "12V"}`.
-    f. The `crosscut-bpo` service receives the enriched plan.
+    d. It dynamically consults the `mock-plm-service` via HTTP call to get fresh business context for this template plan.
+    e. The `mock-plm-service` reads its own authoritative data from `plm-data.json`, finds that `ROUTER-100` requires `12V`, and returns the enriched plan: `{"...": "...", "voltage": "12V"}`.
+    f. The `crosscut-bpo` service receives the fresh, authoritative data from the SoR.
     g. It makes an HTTP call to the `mock-docgen-service` with the final, resolved plan.
     h. The `mock-docgen-service` prints "Received render job for ROUTER-100 with voltage 12V" to the container logs and returns `{"status": "success", "url": "gcs://fake-bucket/doc-123.docx"}`.
     i. The `crosscut-bpo` service receives the success response.
