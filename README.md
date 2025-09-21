@@ -19,9 +19,9 @@ This approach enables centralized orchestration while maintaining decentralized 
 
 CrossCut is architected as a cloud-native, event-driven platform designed for Google Cloud Platform (GCP).
 
-*   **Pattern:** Simplified, unified PostgreSQL data layer for the MVP, with the option to evolve to full Command Query Responsibility Segregation (CQRS) as the platform scales.
-    *   **Write Model:** A PostgreSQL database using an Anchor Modeling schema provides an immutable, auditable log of all platform orchestration actions.
-    *   **Read Model:** PostgreSQL materialized views focused on CrossCut's own process state and audit trail, not external SoR data.
+*   **Pattern:** Unified PostgreSQL data layer serving as both Write Model (Anchor Schema) and Read Model (Materialized Views).
+    *   **Write Model:** PostgreSQL database using 6NF Anchor Modeling for immutable, auditable logs of platform orchestration actions.
+    *   **Read Model:** Denormalized PostgreSQL materialized views for fast queries of CrossCut's own process state and audit trail.
 *   **Data Philosophy:** CrossCut maintains an audit-centric approach - it owns process orchestration data while consulting external Systems of Record (SoRs) dynamically for business context when making decisions.
 *   **Orchestration:** The stateless BPO service handles workflow orchestration directly, using PostgreSQL transactions for consistency.
 *   **Communication:** Asynchronous, event-based communication relies on **GCP Pub/Sub** for external events, while SoR consultation uses synchronous RESTful APIs.

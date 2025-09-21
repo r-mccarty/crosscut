@@ -14,7 +14,7 @@ The platform is designed as a "Conductor and Experts" model. A central orchestra
 
 ### 2.0 Architectural Requirements & Constraints
 
-*   **Pattern:** Command Query Responsibility Segregation (CQRS). The platform will maintain a separate, optimized database for writes (Postgres) and reads (Dgraph).
+*   **Pattern:** Simplified unified data layer. The platform will use a single PostgreSQL database serving as both Write Model (Anchor Schema) and Read Model (Materialized Views).
 *   **Language:** Go (latest stable version) for all custom-built services.
 *   **Deployment Target:** All services and infrastructure will be deployed on Google Cloud Platform (GCP).
 *   **Communication:**
@@ -121,24 +121,40 @@ CrossCut employs a "consult-on-demand" pattern for gathering business context, e
 
 The platform will be built in logical, value-delivering phases.
 
-#### Phase 1: Audit-Centric BPO with Local Storage (4-6 weeks)
-*   **Goal:** Establish the foundational process orchestration capability with audit-centric data approach.
+#### MVP: Single Workflow with Mock Services
+*   **Goal:** Single workflow with mock services and file-based storage.
 *   **Tasks:**
-    *   Define the initial Anchor Model schema for process audit trail.
-    *   Build the `crosscut-bpo` Go service with local file storage (audit-log.json for MVP).
-    *   Implement SoR consultation patterns with HTTP clients and session caching.
-    *   Create mock "expert" services (e.g., Mock PLM) with realistic API patterns.
-    *   Define and deploy a simple GCP Workflow (e.g., "Spec Change -> Re-render Manual").
-    *   Implement circuit breakers and caching for SoR availability handling.
-*   **Definition of Done:** A simulated Pub/Sub event successfully triggers a workflow that calls the BPO, which consults mock SoRs for context, makes orchestration decisions, and commands worker services while maintaining a complete audit trail.
+    *   Build the `crosscut-bpo` Go service with local file storage (audit-log.json).
+    *   Create mock "expert" services (Mock PLM) and worker services (Mock DocGen).
+    *   Implement in-process orchestration for simplified workflow execution.
+    *   Establish SoR consultation patterns with HTTP clients.
+*   **Definition of Done:** A single test workflow successfully executes end-to-end with complete audit trail in file storage.
 
-#### Phase 2: Integrate First Real SoR (3-4 weeks)
-*   **Goal:** Replace a mock service with a real enterprise system.
+#### Phase 1: Real PostgreSQL with Anchor Model
+*   **Goal:** Real PostgreSQL with Anchor Model and materialized views.
 *   **Tasks:**
-    *   Develop the integration layer for the first real SoR (e.g., the PLM).
-    *   Set up Pub/Sub topics and subscriptions for real business events.
-    *   Refactor the relevant workflow to call the real PLM API instead of the mock.
-*   **Definition of Done:** A live event from the production PLM system successfully triggers an automated workflow in the CrossCut platform.
+    *   Migrate from file storage to PostgreSQL database.
+    *   Implement Anchor Model (6NF) for immutable audit trail.
+    *   Create materialized views for read model.
+    *   Implement synchronous view refresh within transactions.
+*   **Definition of Done:** All workflows operate on PostgreSQL with transactionally consistent read/write models.
+
+#### Phase 2: Additional Workflows and External Integrations
+*   **Goal:** Additional workflows and external service integrations.
+*   **Tasks:**
+    *   Add more complex business workflows.
+    *   Integrate with real external systems (PLM, ERP).
+    *   Implement GCP Workflows for long-running processes.
+    *   Add comprehensive monitoring and alerting.
+*   **Definition of Done:** Multiple real workflows operating with external system integrations.
+
+#### Phase 3: Migration to Full CQRS (If Needed)
+*   **Goal:** Migration to full CQRS with dedicated read database if needed.
+*   **Tasks:**
+    *   Evaluate performance requirements for separate read database.
+    *   Implement dedicated read database if PostgreSQL materialized views become insufficient.
+    *   Establish asynchronous synchronization between write and read models.
+*   **Definition of Done:** Scalable read/write separation if performance demands require it.
 
 ### 6.0 Definition of Success
 The platform is successful when it reliably orchestrates its first high-value, end-to-end business process, demonstrably reducing manual effort and process latency while providing a complete audit trail of the automated workflow.

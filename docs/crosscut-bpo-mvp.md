@@ -64,24 +64,19 @@ This is the entire test case for the MVP.
 
 ```
 /
-├── .devcontainer/             # Configuration for GitHub Codespaces
-│   └── devcontainer.json
-├── docker-compose.yml         # Defines the three services for the MVP
-├── crosscut-bpo/              # Source code for the main Go service
-│   ├── cmd/main.go
-│   ├── internal/
-│   ├── go.mod
-│   └── Dockerfile
-├── mock-plm-service/          # Source for the mock PLM
-│   ├── main.go
-│   └── Dockerfile
-├── mock-docgen-service/       # Source for the mock DocGen
-│   ├── main.go
-│   └── Dockerfile
+├── crosscut-bpo/              # Main Go service (BPO)
+├── mock-plm-service/          # Mock PLM expert service
+├── mock-docgen-service/       # Mock document generation worker
 ├── data/                      # Simulated data stores
 │   ├── plm-data.json
-│   └── audit-log.json         # Will be created on first run
-└── README.md                  # Instructions for running the MVP
+│   └── audit-log.json
+└── docker-compose.yml         # MVP deployment configuration
 ```
+
+This structure aligns with the MVP architecture described in CLAUDE.md and supports the implementation roadmap:
+- **MVP:** Single workflow with mock services and file-based storage (current scope)
+- **Phase 1:** Real PostgreSQL with Anchor Model and materialized views
+- **Phase 2:** Additional workflows and external service integrations
+- **Phase 3:** Migration to full CQRS with dedicated read database if needed
 
 This MVP is achievable, demonstrates immense value, and perfectly tests the core architectural hypothesis in a simple, developer-friendly environment.
