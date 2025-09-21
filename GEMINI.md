@@ -8,55 +8,70 @@ CrossCut is designed to be the "central nervous system" for an engineering lifec
 
 The platform is built on a "Conductor and Experts" model. A central **Business Process Orchestrator (BPO)**, implemented as a Go microservice, acts as the "conductor" or "brain." It designs and directs workflows, but it defers to the existing SoRs as the "experts" for domain-specific logic and data validation.
 
-The architecture is event-driven with a simplified, unified PostgreSQL data layer:
+**Current Status:** The MVP is complete and fully functional, demonstrating an end-to-end workflow.
+
+## Architecture
+
+The current MVP architecture is event-driven and uses a simplified, unified PostgreSQL data layer:
 
 *   **Write Model:** A **PostgreSQL** database using an **Anchor Modeling** schema serves as the immutable, auditable log of all orchestrated actions.
-*   **Read Model:** **PostgreSQL materialized views** focused on CrossCut's own process state and audit trail, not external SoR data.
-*   **Data Philosophy:** CrossCut follows an audit-centric approach - it owns only process orchestration data while consulting external Systems of Record (SoRs) dynamically for business context.
-*   **Synchronization:** Materialized views are refreshed synchronously within write transactions for immediate consistency.
+*   **Read Model:** **PostgreSQL materialized views** are used for fast queries of CrossCut's own process state and audit trail.
+*   **Data Philosophy:** CrossCut follows an audit-centric approach. It owns only its process orchestration data while consulting external Systems of Record (SoRs) dynamically for business context during decision-making.
+*   **Synchronization:** Materialized views are refreshed synchronously within the same transaction as the write model to ensure immediate consistency.
+*   **Deployment:** All services are designed as containers intended for deployment on **Google Cloud Platform (GCP)**, utilizing services like **Cloud Run** and **Pub/Sub**. The local MVP environment runs via `docker-compose`.
 
-All services are designed to be deployed on **Google Cloud Platform (GCP)**, utilizing services like **Cloud Run**, **GCP Workflows**, and **Pub/Sub**.
+## Implemented MVP Components
 
-## Building and Running
+The functional MVP consists of the following services:
+- `crosscut-bpo`: The main Go service acting as the BPO.
+- `mock-plm-service`: A mock service simulating a PLM system for plan enrichment.
+- `mock-docgen-service`: A mock worker service for document generation.
 
-This project is primarily composed of documentation and specifications. There is no directly runnable code in the current directory structure.
+## Building and Running the MVP
 
-However, the technical specifications describe a Go-based microservice (`crosscut-bpo`) and a deployment strategy using GCP. Based on the `crosscut-bpo-go-service.md` and `dgraph-deployment-gcp.md` documents, the following commands would be relevant for building and deploying the components of this system.
-
-**TODO: The following commands are placeholders based on the documentation and need to be adapted once the actual source code and build scripts are in place.**
+The MVP is fully implemented and can be run locally using Docker Compose.
 
 ```bash
-# Build the Docker container for the crosscut-bpo Go service
-# (Assuming a Dockerfile exists in the service's source directory)
-docker build -t gcr.io/your-project-id/crosscut-bpo .
+# Start all services in detached mode
+docker-compose up --build -d
 
-# Push the container to Google Container Registry
-docker push gcr.io/your-project-id/crosscut-bpo
+# Execute the test workflow
+# This sends a "schematic.released" event to the BPO
+curl -X POST -H "Content-Type: application/json" \
+-d 
+  {
+    "trigger_event": "schematic.released",
+    "payload": {
+      "product_name": "ROUTER-100",
+      "revision": "C"
+    }
+  }
+\
+http://localhost:8080/v1/execute-workflow
 
-# Deploy the service to GCP Cloud Run with PostgreSQL connection
-gcloud run deploy crosscut-bpo \
-  --image gcr.io/your-project-id/crosscut-bpo \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
+# View the generated audit trail
+cat data/audit-log.json
 
-# Deploy PostgreSQL database (Cloud SQL)
-gcloud sql instances create crosscut-postgres \
-  --database-version=POSTGRES_13 \
-  --tier=db-f1-micro \
-  --region=us-central1
+# Run the automated test script for a comprehensive check
+./test-mvp.sh
 ```
 
 ## Development Conventions
 
-The documentation implies a set of strong development conventions:
+The project adheres to a set of strong development conventions:
 
-*   **Infrastructure as Code:** All GCP resources, including services, workflows, and Pub/Sub topics, should be defined in code (e.g., using Terraform or GCP's own configuration tools).
-*   **API-First Design:** The services communicate through well-defined, versioned RESTful APIs. The `crosscut-bpo-go-service.md` provides a clear specification for the BPO's API.
+*   **API-First Design:** Services communicate through well-defined, versioned RESTful APIs.
 *   **Schema-driven Development:**
-    *   PostgreSQL schemas for both anchor model and materialized views are defined in migration files.
-    *   The BPO uses CUE to validate the structure and integrity of its own processes and plans.
-    *   SoR integration contracts are defined through OpenAPI specifications.
-*   **Modularity:** The Go service is structured into clear, modular packages with distinct responsibilities (e.g., `api`, `events`, `workflows`, `database`).
-*   **Testing:** The emphasis on single-responsibility functions (`activities`) suggests a strong unit testing culture.
-*   **Phased Implementation:** The `crosscut-platform-spec.md` outlines a phased approach to development, starting with the core data pipeline and progressively adding functionality.
+    *   PostgreSQL schemas are defined in migration files.
+    *   The BPO uses **CUE** to validate the structure and integrity of its processes.
+    *   SoR integration contracts are defined through **OpenAPI** specifications.
+*   **Modularity:** The Go services are structured into clear, modular packages with distinct responsibilities (e.g., `api`, `events`, `workflows`, `database`).
+*   **Infrastructure as Code:** All GCP resources are intended to be defined in code (e.g., using Terraform).
+*   **Testing:** A strong emphasis on unit testing and comprehensive end-to-end testing, as demonstrated by the `test-mvp.sh` script.
+
+## Implementation Phases
+
+1.  **MVP:** Single workflow with mock services and file-based audit log. ✅ **COMPLETED**
+2.  **Phase 1:** Migrate data layer to a real PostgreSQL database with Anchor Modeling and materialized views. ⏳ **NEXT**
+3.  **Phase 2:** Implement additional workflows and integrate with real external services.
+4.  **Phase 3:** Evolve to a full CQRS architecture with a dedicated read database if performance requirements dictate.
