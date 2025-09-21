@@ -1,0 +1,381 @@
+openapi: 3.0.3
+info:
+  title: Mock DocGen Service API
+  description: |
+    Mock document generation service for CrossCut MVP testing.
+    Based on the real DocGen2 API structure but simplified for MVP workflow testing.
+
+    This service simulates document generation by receiving enriched plans from the
+    CrossCut BPO and returning fake document URLs for audit trail verification.
+  version: 1.0.0
+  contact:
+    name: CrossCut MVP Team
+    url: https://github.com/r-mccarty/crosscut
+
+servers:
+  - url: http://localhost:8082
+    description: Local development server (Docker)
+  - url: http://mock-docgen-service:8082
+    description: Docker Compose internal network
+
+paths:
+  /generate:
+    post:
+      summary: Generate document from enriched plan
+      description: |
+        Receives an enriched document plan from the CrossCut BPO and simulates
+        document generation by returning a fake document URL. Logs the received
+        plan for verification in MVP testing.
+      operationId: generateDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentPlan'
+            examples:
+              router_test_plan:
+                summary: Router DVT Test Plan (MVP Example)
+                value:
+                  doc_props:
+                    filename: "ROUTER-100-DVT-Procedure-Rev-C"
+                  body:
+                    - component: "DocumentTitle"
+                      props:
+                        document_title: "Design Verification Test Procedure"
+                        product_name: "ROUTER-100"
+                        revision: "C"
+                    - component: "TestBlock"
+                      props:
+                        test_name: "PowerTest"
+                        voltage: "12V"
+                        description: "Validate power supply voltage requirements"
+      responses:
+        '200':
+          description: Document generation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateResponse'
+              examples:
+                success_response:
+                  summary: Successful generation response
+                  value:
+                    status: "success"
+                    url: "gcs://fake-bucket/ROUTER-100-DVT-Procedure-Rev-C-20241201-143022.docx"
+                    filename: "ROUTER-100-DVT-Procedure-Rev-C.docx"
+                    generation_time_ms: 245
+                    components_rendered: 2
+        '400':
+          description: Invalid document plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                validation_error:
+                  summary: Plan validation failure
+                  value:
+                    error: "validation_failed"
+                    message: "Missing required component property"
+                    details:
+                      - field: "body[1].props.voltage"
+                        issue: "required field missing"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                server_error:
+                  summary: Document generation failure
+                  value:
+                    error: "generation_failed"
+                    message: "Internal processing error"
+
+  /validate-plan:
+    post:
+      summary: Validate document plan without generation
+      description: |
+        Validates a document plan structure without actually generating a document.
+        Used for testing plan validity before sending to generation.
+      operationId: validatePlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentPlan'
+      responses:
+        '200':
+          description: Plan is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+              examples:
+                valid_plan:
+                  summary: Valid plan response
+                  value:
+                    valid: true
+                    message: "Document plan is valid"
+                    components_validated: 2
+        '400':
+          description: Plan validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+              examples:
+                invalid_plan:
+                  summary: Invalid plan response
+                  value:
+                    valid: false
+                    message: "Document plan validation failed"
+                    errors:
+                      - field: "body[0].component"
+                        issue: "Unknown component type"
+
+  /health:
+    get:
+      summary: Service health check
+      description: Returns the current health status of the mock DocGen service
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Healthy service response
+                  value:
+                    status: "healthy"
+                    service: "mock-docgen-service"
+                    version: "1.0.0"
+                    uptime_seconds: 3600
+                    components_loaded: 4
+                    available_components:
+                      - "DocumentTitle"
+                      - "TestBlock"
+                      - "AuthorBlock"
+                      - "DocumentSubject"
+
+  /components:
+    get:
+      summary: List available document components
+      description: Returns the list of document components available for use in plans
+      operationId: getComponents
+      responses:
+        '200':
+          description: List of available components
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentsResponse'
+              examples:
+                components_list:
+                  summary: Available components
+                  value:
+                    components:
+                      - "DocumentTitle"
+                      - "TestBlock"
+                      - "AuthorBlock"
+                      - "DocumentSubject"
+                    count: 4
+                    note: "Mock components for MVP testing"
+
+components:
+  schemas:
+    DocumentPlan:
+      type: object
+      required:
+        - body
+      properties:
+        doc_props:
+          type: object
+          description: Document metadata and properties
+          properties:
+            filename:
+              type: string
+              description: Optional document filename (without extension)
+              example: "ROUTER-100-DVT-Procedure-Rev-C"
+            header_component:
+              type: string
+              description: Optional header component name
+            header_props:
+              type: object
+              description: Properties for header component
+              additionalProperties: true
+        body:
+          type: array
+          description: Array of document components to render
+          items:
+            $ref: '#/components/schemas/ComponentInstance'
+          minItems: 1
+
+    ComponentInstance:
+      type: object
+      required:
+        - component
+        - props
+      properties:
+        component:
+          type: string
+          description: Name of the component to render
+          example: "TestBlock"
+        props:
+          type: object
+          description: Component-specific properties
+          additionalProperties: true
+          example:
+            test_name: "PowerTest"
+            voltage: "12V"
+            description: "Validate power supply voltage requirements"
+        children:
+          type: array
+          description: Optional nested components
+          items:
+            $ref: '#/components/schemas/ComponentInstance'
+
+    GenerateResponse:
+      type: object
+      required:
+        - status
+        - url
+      properties:
+        status:
+          type: string
+          enum: ["success", "failed"]
+          example: "success"
+        url:
+          type: string
+          description: URL to the generated document (fake for mock service)
+          example: "gcs://fake-bucket/ROUTER-100-DVT-Procedure-Rev-C-20241201-143022.docx"
+        filename:
+          type: string
+          description: Generated filename
+          example: "ROUTER-100-DVT-Procedure-Rev-C.docx"
+        generation_time_ms:
+          type: integer
+          description: Simulated generation time in milliseconds
+          minimum: 1
+          example: 245
+        components_rendered:
+          type: integer
+          description: Number of components processed
+          minimum: 0
+          example: 2
+
+    ValidationResponse:
+      type: object
+      required:
+        - valid
+        - message
+      properties:
+        valid:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Document plan is valid"
+        components_validated:
+          type: integer
+          description: Number of components validated (only if valid=true)
+          minimum: 0
+          example: 2
+        errors:
+          type: array
+          description: Validation errors (only if valid=false)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "body[0].component"
+              issue:
+                type: string
+                example: "Unknown component type"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "unhealthy"]
+          example: "healthy"
+        service:
+          type: string
+          example: "mock-docgen-service"
+        version:
+          type: string
+          example: "1.0.0"
+        uptime_seconds:
+          type: integer
+          minimum: 0
+          example: 3600
+        components_loaded:
+          type: integer
+          minimum: 0
+          example: 4
+        available_components:
+          type: array
+          items:
+            type: string
+          example: ["DocumentTitle", "TestBlock", "AuthorBlock", "DocumentSubject"]
+
+    ComponentsResponse:
+      type: object
+      required:
+        - components
+        - count
+      properties:
+        components:
+          type: array
+          items:
+            type: string
+          example: ["DocumentTitle", "TestBlock", "AuthorBlock", "DocumentSubject"]
+        count:
+          type: integer
+          minimum: 0
+          example: 4
+        note:
+          type: string
+          example: "Mock components for MVP testing"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code/type
+          example: "validation_failed"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Missing required component property"
+        details:
+          type: array
+          description: Additional error details
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+
+tags:
+  - name: Document Generation
+    description: Document generation and validation endpoints
+  - name: Service Management
+    description: Health checks and component listing
